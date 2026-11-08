@@ -1,0 +1,1933 @@
+```html
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <title>MiniCraft - Tahap 5 (Final)</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            overscroll-behavior: none;
+            margin: 0;
+            overflow: hidden;
+            background-color: #0a0a0a;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+        
+        /* VIGNETTE OVERLAY */
+        #vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 5;
+            pointer-events: none;
+            background: radial-gradient(circle, transparent 55%, rgba(0, 0, 0, 0.45) 100%);
+            display: none;
+        }
+        #vignette.show { display: block; }
+
+        #ui-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .interactive {
+            pointer-events: auto;
+        }
+
+        /* CROSSHAIR */
+        #crosshair {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            transform: translate(-50%, -50%);
+            z-index: 15;
+            pointer-events: none;
+            display: none;
+            opacity: 0.8;
+            transition: transform 0.1s ease;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.9);
+            transition: background-color 0.1s ease;
+        }
+        #crosshair::before { top: 9px; left: 0; width: 20px; height: 2px; }
+        #crosshair::after { top: 0; left: 9px; width: 2px; height: 20px; }
+        #crosshair.show { display: block; }
+        #crosshair.hit::before, #crosshair.hit::after { background: #FFD700; }
+
+        @media (max-width: 767px) {
+            #crosshair { width: 24px; height: 24px; }
+            #crosshair::before { top: 11px; width: 24px; }
+            #crosshair::after { left: 11px; height: 24px; }
+        }
+
+        /* HOTBAR UI */
+        #hotbar-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            z-index: 20;
+            display: flex;
+            gap: 6px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 8px;
+            border-radius: 12px;
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transition: transform 400ms cubic-bezier(0.1, 1, 0.1, 1);
+            pointer-events: auto;
+        }
+        #hotbar-container.show {
+            transform: translateX(-50%) translateY(0);
+        }
+        .hotbar-slot {
+            width: 52px;
+            height: 52px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            background-color: rgba(50, 50, 50, 0.6);
+            position: relative;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.15s ease;
+        }
+        .hotbar-slot.active {
+            border: 3px solid #ffffff;
+            transform: scale(1.1);
+            box-shadow: 0 0 14px rgba(93, 156, 63, 0.8);
+        }
+        .hotbar-num {
+            position: absolute;
+            top: 2px;
+            left: 4px;
+            font-size: 11px;
+            color: #ffffff;
+            font-weight: bold;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+        }
+        .hotbar-preview {
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+        }
+
+        /* HUD: FPS & DEBUG & INSTRUCTIONS */
+        #hud-debug {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.5);
+            color: #ffffff;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            pointer-events: none;
+            display: none;
+            backdrop-filter: blur(4px);
+            line-height: 1.4;
+        }
+        #hud-debug.show { display: block; }
+        #hud-instructions {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.4);
+            color: #ffffff;
+            font-size: 11px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            pointer-events: none;
+            display: none;
+            backdrop-filter: blur(4px);
+        }
+        #hud-instructions.show { display: block; }
+
+        /* FASE 1: LOADING SCREEN */
+        #loading-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #0a0a0a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 30;
+            transition: opacity 400ms ease-out;
+        }
+        .loading-logo {
+            font-size: 56px;
+            font-weight: 800;
+            color: #ffffff;
+            text-shadow: 0 4px 12px #5D9C3F;
+            margin-bottom: 24px;
+            animation: logoIntro 800ms ease-out forwards;
+        }
+        @keyframes logoIntro {
+            0% { opacity: 0; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .progress-bar-container {
+            width: 300px;
+            height: 8px;
+            background-color: #222222;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 16px;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #5D9C3F, #7FB85C);
+            transition: width 2s ease-in-out;
+            position: relative;
+        }
+        .loading-status {
+            font-size: 14px;
+            color: #aaaaaa;
+            height: 20px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .loading-device {
+            font-size: 11px;
+            color: #666666;
+        }
+
+        /* FASE 2: MAIN MENU */
+        #menu-panel {
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 32px;
+            width: 90%;
+            max-width: 480px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 500ms ease-out, transform 500ms ease-out;
+        }
+        #menu-panel.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .menu-title {
+            font-size: 48px;
+            font-weight: 800;
+            color: #ffffff;
+            text-shadow: 0 4px 12px #5D9C3F;
+            margin: 0 0 4px 0;
+            text-align: center;
+        }
+        .menu-subtitle {
+            font-size: 14px;
+            color: #aaaaaa;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .menu-btn {
+            padding: 14px 20px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 700;
+            color: #ffffff;
+            border: none;
+            cursor: pointer;
+            min-height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+        }
+        .menu-btn:hover:not(:disabled) {
+            transform: scale(1.03);
+            box-shadow: 0 0 15px rgba(93, 156, 63, 0.4);
+        }
+        .menu-btn:active:not(:disabled) { transform: scale(0.98); }
+        .btn-primary { background-color: #5D9C3F; }
+        .btn-primary:hover { background-color: #6FB04A; }
+        .btn-secondary { background-color: #555555; }
+        .btn-secondary:disabled {
+            background-color: #333333; color: #777777;
+            opacity: 0.4; cursor: not-allowed;
+            transform: none !important; box-shadow: none !important;
+        }
+        .btn-tertiary { background-color: #444444; }
+        .btn-tertiary:hover { background-color: #555555; }
+        .menu-footer { font-size: 11px; color: #777777; text-align: center; }
+
+        /* PAUSE OVERLAY */
+        #pause-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px); z-index: 35;
+            display: none; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 300ms ease;
+        }
+        #pause-overlay.show { display: flex; opacity: 1; }
+        .pause-card {
+            background: rgba(30, 30, 30, 0.85); border-radius: 16px; padding: 32px;
+            width: 90%; max-width: 400px; display: flex; flex-direction: column;
+            align-items: center; box-shadow: 0 15px 35px rgba(0,0,0,0.8);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .pause-title {
+            font-size: 48px; font-weight: 800; color: #ffffff;
+            text-shadow: 0 4px 12px rgba(255,255,255,0.3); margin: 0 0 24px 0;
+        }
+        .pause-buttons { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+        .btn-danger { background-color: #C0392B; }
+        .btn-danger:hover { background-color: #D9534F; }
+
+        /* MODAL CARA BERMAIN */
+        #modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8); z-index: 40;
+            display: none; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 300ms ease;
+        }
+        #modal-overlay.show { display: flex; opacity: 1; }
+        .modal-card {
+            background: #222222; border-radius: 12px; padding: 24px;
+            width: 90%; max-width: 420px; color: #ffffff; position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.1);
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .modal-header h3 { margin: 0; font-size: 20px; color: #5D9C3F; }
+        .close-btn { background: none; border: none; color: #aaa; font-size: 24px; cursor: pointer; padding: 0; line-height: 1; }
+        .close-btn:hover { color: #fff; }
+        .modal-body { font-size: 14px; line-height: 1.6; color: #cccccc; white-space: pre-line; max-height: 60vh; overflow-y: auto; }
+
+        /* TRANSISI FADE OVERLAY */
+        #fade-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000000; z-index: 50; opacity: 0; pointer-events: none;
+            transition: opacity 500ms ease-in-out;
+        }
+        #fade-overlay.active { opacity: 1; pointer-events: auto; }
+
+        /* POINTER LOCK PROMPT */
+        #pointer-lock-prompt {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7); color: #ffffff; padding: 10px 20px;
+            border-radius: 8px; font-size: 14px; font-weight: bold; z-index: 25;
+            display: none; pointer-events: none; border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+
+        /* MOBILE CONTROLS */
+        #mobile-controls {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 20; display: none; pointer-events: none;
+        }
+        #mobile-controls.show { display: block; }
+        #joystick-base {
+            position: absolute; bottom: 90px; left: 30px; width: 120px; height: 120px;
+            border-radius: 60px; background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.4); pointer-events: auto; touch-action: none;
+        }
+        #joystick-knob {
+            position: absolute; top: 35px; left: 35px; width: 50px; height: 50px;
+            border-radius: 25px; background: rgba(255, 255, 255, 0.5); pointer-events: none;
+        }
+        .mobile-action-btn {
+            position: absolute; bottom: 90px; width: 60px; height: 60px;
+            border-radius: 30px; background: rgba(93, 156, 63, 0.8);
+            border: 2px solid rgba(255, 255, 255, 0.6); color: #ffffff;
+            font-size: 22px; display: flex; align-items: center; justify-content: center;
+            pointer-events: auto; touch-action: none; box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+        }
+        .mobile-action-btn:active { transform: scale(0.92); background: rgba(93, 156, 63, 1); }
+        #btn-jump { right: 30px; bottom: 160px; }
+        #btn-break { right: 105px; bottom: 90px; background: rgba(180, 60, 60, 0.8); }
+        #btn-place { right: 30px; bottom: 90px; background: rgba(60, 120, 180, 0.8); }
+        
+        /* Mobile Top Bar Controls (Safe Area Notch aware) */
+        #mobile-top-bar {
+            position: fixed; top: max(20px, env(safe-area-inset-top)); left: 20px; z-index: 25;
+            display: flex; gap: 10px; pointer-events: auto;
+        }
+        .mobile-top-btn {
+            width: 40px; height: 40px; border-radius: 20px;
+            background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #ffffff; font-size: 18px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; backdrop-filter: blur(4px);
+        }
+        #btn-respawn-mobile {
+            position: fixed; top: max(20px, env(safe-area-inset-top)); right: 20px; z-index: 25;
+            width: 40px; height: 40px; border-radius: 20px;
+            background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #ffffff; font-size: 18px; display: none; align-items: center; justify-content: center;
+            cursor: pointer; backdrop-filter: blur(4px); pointer-events: auto;
+        }
+        #btn-respawn-mobile.show { display: flex; }
+
+        #mobile-look-area {
+            position: absolute; top: 0; right: 0; width: 60%; height: calc(100% - 100px);
+            pointer-events: auto; touch-action: none;
+        }
+
+        @media (max-width: 767px) {
+            .loading-logo { font-size: 36px; }
+            .progress-bar-container { width: 240px; }
+            .menu-title { font-size: 36px; }
+            #menu-panel { padding: 24px; max-width: 400px; }
+            .hotbar-slot { width: 44px; height: 44px; }
+            .pause-title { font-size: 32px; }
+        }
+    </style>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+        }
+    }
+    </script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+    <div id="vignette"></div>
+    <div id="crosshair"></div>
+
+    <div id="ui-container">
+        <!-- FASE 1: LOADING SCREEN -->
+        <div id="loading-screen" class="interactive">
+            <div class="loading-logo">MiniCraft</div>
+            <div class="progress-bar-container">
+                <div id="progress-fill" class="progress-bar-fill"></div>
+            </div>
+            <div id="loading-status" class="loading-status">Membangun dunia...</div>
+            <div id="loading-device" class="loading-device"></div>
+        </div>
+
+        <!-- FASE 2: MAIN MENU -->
+        <div id="menu-panel" class="interactive" style="display: none;">
+            <h1 class="menu-title">MiniCraft</h1>
+            <div class="menu-subtitle">A Voxel Sandbox Adventure</div>
+            <div class="menu-buttons">
+                <button id="btn-play" class="menu-btn btn-primary">▶ MULAI PERMAINAN BARU</button>
+                <button id="btn-load" class="menu-btn btn-secondary" disabled>🌍 MUAT DUNIA TERAKHIR</button>
+                <button id="btn-help" class="menu-btn btn-tertiary">❓ CARA BERMAIN</button>
+            </div>
+            <div class="menu-footer">Dibuat dengan Three.js · v0.5 Final</div>
+        </div>
+    </div>
+
+    <!-- HUD & INSTRUKSI -->
+    <div id="hud-instructions">ESC: Pause · R: Respawn · F: Debug</div>
+    <div id="hud-debug"></div>
+
+    <!-- HOTBAR 6 SLOT -->
+    <div id="hotbar-container"></div>
+
+    <!-- POINTER LOCK PROMPT -->
+    <div id="pointer-lock-prompt">Klik untuk mengunci mouse & mulai bermain</div>
+
+    <!-- MOBILE CONTROLS -->
+    <div id="mobile-controls">
+        <div id="mobile-look-area"></div>
+        <div id="joystick-base"><div id="joystick-knob"></div></div>
+        <div id="btn-jump" class="mobile-action-btn">⬆</div>
+        <div id="btn-break" class="mobile-action-btn">⛏</div>
+        <div id="btn-place" class="mobile-action-btn">🧱</div>
+    </div>
+
+    <div id="mobile-top-bar">
+        <button id="btn-pause-mobile" class="mobile-top-btn" style="display: none;">⏸</button>
+    </div>
+    <button id="btn-respawn-mobile">↻</button>
+
+    <!-- PAUSE OVERLAY -->
+    <div id="pause-overlay" class="interactive">
+        <div class="pause-card">
+            <h2 class="pause-title">PAUSED</h2>
+            <div class="pause-buttons">
+                <button id="btn-resume" class="menu-btn btn-primary">▶ LANJUTKAN</button>
+                <button id="btn-pause-help" class="menu-btn btn-tertiary">❓ CARA BERMAIN</button>
+                <button id="btn-main-menu" class="menu-btn btn-danger">🏠 MENU UTAMA</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL CARA BERMAIN -->
+    <div id="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Cara Bermain</h3>
+                <button id="modal-close" class="close-btn">&times;</button>
+            </div>
+            <div id="modal-content" class="modal-body"></div>
+        </div>
+    </div>
+
+    <div id="fade-overlay"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth < 768 || 'ontouchstart' in window;
+        let currentPhase = 'loading';
+
+        document.getElementById('loading-device').textContent = `Optimized for ${IS_MOBILE ? 'Mobile' : 'Desktop'}`;
+
+        // Save Manager (LocalStorage)
+        class SaveManager {
+            constructor() { this.key = 'minicraft_save'; }
+            save(world, player, currentSlot, yaw) {
+                try {
+                    const saveData = {
+                        version: 1,
+                        timestamp: Date.now(),
+                        worldData: Array.from(world.data),
+                        playerPos: [player.position.x, player.position.y, player.position.z],
+                        playerYaw: yaw,
+                        currentSlot: currentSlot
+                    };
+                    localStorage.setItem(this.key, JSON.stringify(saveData));
+                } catch (e) { console.error('Gagal menyimpan game:', e); }
+            }
+            load() {
+                try {
+                    const raw = localStorage.getItem(this.key);
+                    return raw ? JSON.parse(raw) : null;
+                } catch (e) { console.error('Gagal memuat game:', e); return null; }
+            }
+            hasSave() { return localStorage.getItem(this.key) !== null; }
+            clear() { localStorage.removeItem(this.key); }
+        }
+        const saveManager = new SaveManager();
+
+        // Sound Manager (WebAudio API + Footsteps)
+        class SoundManager {
+            constructor() {
+                this.ctx = null;
+                this.stepTimer = 0;
+            }
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) this.ctx = new AudioContext();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+            playBreakSound() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+            playPlaceSound() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(350, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(180, this.ctx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            }
+            playStepSound(dt, isMoving, onGround) {
+                if (!isMoving || !onGround) return;
+                this.stepTimer += dt;
+                if (this.stepTimer >= 0.4) {
+                    this.stepTimer = 0;
+                    this.init();
+                    if (!this.ctx) return;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(90, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(50, this.ctx.currentTime + 0.08);
+                    gain.gain.setValueAtTime(0.03, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.08);
+                }
+            }
+        }
+        const soundManager = new SoundManager();
+
+        // Skybox Gradient Shader & Matahari
+        class Skybox {
+            constructor(scene) {
+                this.scene = scene;
+                const geom = new THREE.SphereGeometry(500, 32, 15);
+                const mat = new THREE.ShaderMaterial({
+                    uniforms: {
+                        topColor: { value: new THREE.Color(0x4A90E2) },
+                        bottomColor: { value: new THREE.Color(0x87CEEB) }
+                    },
+                    vertexShader: `
+                        varying vec3 vWorldPosition;
+                        void main() {
+                            vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                            vWorldPosition = worldPosition.xyz;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        uniform vec3 topColor;
+                        uniform vec3 bottomColor;
+                        varying vec3 vWorldPosition;
+                        void main() {
+                            float h = normalize(vWorldPosition).y;
+                            float t = max(min(h, 1.0), 0.0);
+                            gl_FragColor = vec4(mix(bottomColor, topColor, pow(t, 0.6)), 1.0);
+                        }
+                    `,
+                    side: THREE.BackSide
+                });
+
+                this.mesh = new THREE.Mesh(geom, mat);
+                this.scene.add(this.mesh);
+
+                // Matahari dengan Glow
+                const canvas = document.createElement('canvas');
+                canvas.width = 64; canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+                const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+                grad.addColorStop(0, 'rgba(255, 255, 220, 1)');
+                grad.addColorStop(0.4, 'rgba(255, 215, 0, 0.9)');
+                grad.addColorStop(1, 'rgba(255, 215, 0, 0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 64, 64);
+
+                const texture = new THREE.CanvasTexture(canvas);
+                const sunMat = new THREE.SpriteMaterial({ map: texture, fog: false, blending: THREE.AdditiveBlending });
+                this.sunSprite = new THREE.Sprite(sunMat);
+                this.sunSprite.scale.set(60, 60, 1);
+                this.sunSprite.position.set(200, 250, -150);
+                this.scene.add(this.sunSprite);
+            }
+
+            update(cameraPos) {
+                this.mesh.position.copy(cameraPos);
+            }
+
+            dispose() {
+                this.scene.remove(this.mesh);
+                this.mesh.geometry.dispose();
+                this.mesh.material.dispose();
+                this.scene.remove(this.sunSprite);
+                this.sunSprite.material.map.dispose();
+                this.sunSprite.material.dispose();
+            }
+        }
+
+        // Particle System Pool
+        class ParticleSystem {
+            constructor(scene) {
+                this.scene = scene;
+                this.maxParticles = 120;
+                this.geometry = new THREE.BufferGeometry();
+                this.positions = new Float32Array(this.maxParticles * 3);
+                this.velocities = [];
+                this.lifespan = [];
+                this.ages = [];
+                this.colors = new Float32Array(this.maxParticles * 3);
+
+                for (let i = 0; i < this.maxParticles; i++) {
+                    this.positions[i * 3] = 0;
+                    this.positions[i * 3 + 1] = -100;
+                    this.positions[i * 3 + 2] = 0;
+                    this.velocities.push(new THREE.Vector3());
+                    this.lifespan.push(0);
+                    this.ages.push(1);
+                    this.colors[i * 3] = 1; this.colors[i * 3 + 1] = 1; this.colors[i * 3 + 2] = 1;
+                }
+
+                this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+                this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
+
+                const material = new THREE.PointsMaterial({
+                    size: 0.15, vertexColors: true, transparent: true, opacity: 0.8
+                });
+
+                this.points = new THREE.Points(this.geometry, material);
+                this.scene.add(this.points);
+                this.currentIndex = 0;
+            }
+
+            spawnBurst(pos, blockType) {
+                const hexColors = {
+                    1: [0.36, 0.61, 0.25], 2: [0.54, 0.35, 0.17], 3: [0.50, 0.50, 0.50],
+                    4: [0.40, 0.25, 0.10], 5: [0.20, 0.45, 0.20], 6: [0.85, 0.80, 0.60]
+                };
+                const col = hexColors[blockType] || [0.8, 0.8, 0.8];
+
+                for (let i = 0; i < 8; i++) {
+                    const idx = this.currentIndex;
+                    this.positions[idx * 3] = pos.x + (Math.random() - 0.5) * 0.8;
+                    this.positions[idx * 3 + 1] = pos.y + (Math.random() - 0.5) * 0.8;
+                    this.positions[idx * 3 + 2] = pos.z + (Math.random() - 0.5) * 0.8;
+
+                    this.velocities[idx].set((Math.random() - 0.5) * 4, Math.random() * 4 + 2, (Math.random() - 0.5) * 4);
+                    this.lifespan[idx] = 0.5 + Math.random() * 0.3;
+                    this.ages[idx] = 0;
+
+                    this.colors[idx * 3] = col[0]; this.colors[idx * 3 + 1] = col[1]; this.colors[idx * 3 + 2] = col[2];
+                    this.currentIndex = (this.currentIndex + 1) % this.maxParticles;
+                }
+                this.geometry.attributes.position.needsUpdate = true;
+                this.geometry.attributes.color.needsUpdate = true;
+            }
+
+            update(dt) {
+                let needsUpdate = false;
+                for (let i = 0; i < this.maxParticles; i++) {
+                    if (this.ages[i] < this.lifespan[i]) {
+                        this.ages[i] += dt;
+                        this.velocities[i].y -= 9.8 * dt;
+                        this.positions[i * 3] += this.velocities[i].x * dt;
+                        this.positions[i * 3 + 1] += this.velocities[i].y * dt;
+                        this.positions[i * 3 + 2] += this.velocities[i].z * dt;
+
+                        if (this.ages[i] >= this.lifespan[i]) this.positions[i * 3 + 1] = -100;
+                        needsUpdate = true;
+                    }
+                }
+                if (needsUpdate) this.geometry.attributes.position.needsUpdate = true;
+            }
+
+            dispose() {
+                this.scene.remove(this.points);
+                this.geometry.dispose();
+                this.points.material.dispose();
+            }
+        }
+
+        // Definisi BlockTypes & Tekstur Prosedural (1-6)
+        class BlockTypes {
+            static generateTexture(type) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 16; canvas.height = 16;
+                const ctx = canvas.getContext('2d');
+
+                if (type === 1) {
+                    ctx.fillStyle = '#5D9C3F'; ctx.fillRect(0, 0, 16, 16);
+                    ctx.fillStyle = '#4B8233';
+                    for (let i = 0; i < 20; i++) ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+                } else if (type === 2) {
+                    ctx.fillStyle = '#8B5A2B'; ctx.fillRect(0, 0, 16, 16);
+                    ctx.fillStyle = '#6F4520';
+                    for (let i = 0; i < 30; i++) ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+                } else if (type === 3) {
+                    ctx.fillStyle = '#7F7F7F'; ctx.fillRect(0, 0, 16, 16);
+                    ctx.fillStyle = '#5F5F5F';
+                    for (let i = 0; i < 25; i++) ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+                } else if (type === 4) {
+                    ctx.fillStyle = '#654321'; ctx.fillRect(0, 0, 16, 16);
+                    ctx.fillStyle = '#503015';
+                    for (let i = 0; i < 16; i++) ctx.fillRect(i, 0, 2, 16);
+                } else if (type === 5) {
+                    ctx.fillStyle = '#2d5a27'; ctx.fillRect(0, 0, 16, 16);
+                    ctx.fillStyle = '#1e3d1a';
+                    for (let i = 0; i < 35; i++) ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+                } else if (type === 6) {
+                    ctx.fillStyle = '#e3d69b'; ctx.fillRect(0, 0, 16, 16);
+                    ctx.fillStyle = '#c9bc7d';
+                    for (let i = 0; i < 25; i++) ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+                }
+
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.magFilter = THREE.NearestFilter;
+                texture.minFilter = THREE.NearestFilter;
+                return texture;
+            }
+
+            static initTextures() {
+                if (this.textures) return;
+                this.textures = {
+                    1: this.generateTexture(1), 2: this.generateTexture(2), 3: this.generateTexture(3),
+                    4: this.generateTexture(4), 5: this.generateTexture(5), 6: this.generateTexture(6)
+                };
+                this.materials = {
+                    1: new THREE.MeshLambertMaterial({ map: this.textures[1] }),
+                    2: new THREE.MeshLambertMaterial({ map: this.textures[2] }),
+                    3: new THREE.MeshLambertMaterial({ map: this.textures[3] }),
+                    4: new THREE.MeshLambertMaterial({ map: this.textures[4] }),
+                    5: new THREE.MeshLambertMaterial({ map: this.textures[5], transparent: true, opacity: 0.9, depthWrite: true }),
+                    6: new THREE.MeshLambertMaterial({ map: this.textures[6] })
+                };
+            }
+
+            static dispose() {
+                if (this.textures) {
+                    for (let id in this.textures) this.textures[id].dispose();
+                    for (let id in this.materials) this.materials[id].dispose();
+                    this.textures = null;
+                    this.materials = null;
+                }
+            }
+        }
+
+        // Hotbar UI Class
+        class Hotbar {
+            constructor() {
+                this.slots = [1, 2, 3, 4, 5, 6];
+                this.colors = { 1: '#5D9C3F', 2: '#8B5A2B', 3: '#7F7F7F', 4: '#654321', 5: '#2d5a27', 6: '#e3d69b' };
+                this.activeSlot = 0;
+                this.container = document.getElementById('hotbar-container');
+                this.render();
+            }
+
+            render() {
+                this.container.innerHTML = '';
+                this.slots.forEach((blockType, idx) => {
+                    const slotDiv = document.createElement('div');
+                    slotDiv.className = `hotbar-slot ${idx === this.activeSlot ? 'active' : ''}`;
+                    slotDiv.innerHTML = `
+                        <div class="hotbar-num">${idx + 1}</div>
+                        <div class="hotbar-preview" style="background-color: ${this.colors[blockType]}"></div>
+                    `;
+                    slotDiv.addEventListener('click', () => this.setActive(idx));
+                    this.container.appendChild(slotDiv);
+                });
+            }
+
+            setActive(idx) {
+                this.activeSlot = idx;
+                const slotEls = this.container.children;
+                for (let i = 0; i < slotEls.length; i++) {
+                    slotEls[i].classList.toggle('active', i === idx);
+                }
+            }
+
+            getCurrentBlockType() { return this.slots[this.activeSlot]; }
+            show(show) { this.container.classList.toggle('show', show); }
+        }
+
+        // Kelas World (Frustum Culling & Rebuild Chunk)
+        class World {
+            constructor() {
+                this.sizeX = 64; this.sizeY = 32; this.sizeZ = 64;
+                this.data = new Uint8Array(this.sizeX * this.sizeY * this.sizeZ);
+                this.chunkSize = 16;
+                this.chunksGroup = new THREE.Group();
+                this.chunkMeshes = {};
+            }
+
+            noise2D(x, z) {
+                let val = Math.sin(x * 0.05) * Math.cos(z * 0.05) * 4;
+                val += Math.sin(x * 0.15 + 1.2) * Math.cos(z * 0.15 + 1.2) * 2;
+                val += Math.sin(x * 0.4) * Math.cos(z * 0.4) * 0.8;
+                return val;
+            }
+
+            generateTerrain() {
+                for (let x = 0; x < this.sizeX; x++) {
+                    for (let z = 0; z < this.sizeZ; z++) {
+                        const n = this.noise2D(x, z);
+                        const surfaceH = Math.floor(15 + n);
+                        const clampedH = Math.max(5, Math.min(26, surfaceH));
+
+                        for (let y = 0; y < this.sizeY; y++) {
+                            let type = 0;
+                            if (y < clampedH) {
+                                if (y === clampedH - 1) type = 1;
+                                else if (y >= clampedH - 4) type = 2;
+                                else type = 3;
+                            }
+                            this.setBlockRaw(x, y, z, type);
+                        }
+                    }
+                }
+            }
+
+            loadFromData(arrData) {
+                if (arrData && arrData.length === this.data.length) this.data.set(arrData);
+            }
+
+            getIndex(x, y, z) { return x + z * this.sizeX + y * this.sizeX * this.sizeZ; }
+            getBlock(x, y, z) {
+                if (x < 0 || x >= this.sizeX || y < 0 || y >= this.sizeY || z < 0 || z >= this.sizeZ) return 0;
+                return this.data[this.getIndex(x, y, z)];
+            }
+            setBlockRaw(x, y, z, type) {
+                if (x < 0 || x >= this.sizeX || y < 0 || y >= this.sizeY || z < 0 || z >= this.sizeZ) return;
+                this.data[this.getIndex(x, y, z)] = type;
+            }
+            setBlock(x, y, z, type) {
+                if (x < 0 || x >= this.sizeX || y < 0 || y >= this.sizeY || z < 0 || z >= this.sizeZ) return;
+                this.data[this.getIndex(x, y, z)] = type;
+                this.rebuildChunkAt(x, z);
+            }
+            isSolid(x, y, z) { return this.getBlock(x, y, z) > 0; }
+
+            buildAll(scene) {
+                BlockTypes.initTextures();
+                while(this.chunksGroup.children.length > 0) {
+                    this.chunksGroup.remove(this.chunksGroup.children[0]);
+                }
+                this.chunkMeshes = {};
+
+                const numChunksX = this.sizeX / this.chunkSize;
+                const numChunksZ = this.sizeZ / this.chunkSize;
+
+                for (let cx = 0; cx < numChunksX; cx++) {
+                    for (let cz = 0; cz < numChunksZ; cz++) {
+                        this.buildChunk(cx, cz);
+                    }
+                }
+                scene.add(this.chunksGroup);
+            }
+
+            buildChunk(cx, cz) {
+                const key = `${cx},${cz}`;
+                if (this.chunkMeshes[key]) {
+                    this.chunksGroup.remove(this.chunkMeshes[key]);
+                    this.chunkMeshes[key] = null;
+                }
+
+                const startX = cx * this.chunkSize;
+                const startZ = cz * this.chunkSize;
+                const geometries = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+                const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+
+                const dx = [1, -1, 0, 0, 0, 0];
+                const dy = [0, 0, 1, -1, 0, 0];
+                const dz = [0, 0, 0, 0, 1, -1];
+
+                for (let x = startX; x < startX + this.chunkSize; x++) {
+                    for (let y = 0; y < this.sizeY; y++) {
+                        for (let z = startZ; z < startZ + this.chunkSize; z++) {
+                            const bId = this.getBlock(x, y, z);
+                            if (bId === 0) continue;
+
+                            let exposed = false;
+                            for (let i = 0; i < 6; i++) {
+                                const nb = this.getBlock(x + dx[i], y + dy[i], z + dz[i]);
+                                if (nb === 0 || (bId !== 5 && nb === 5)) {
+                                    exposed = true;
+                                    break;
+                                }
+                            }
+
+                            if (exposed) {
+                                const matrix = new THREE.Matrix4().makeTranslation(x + 0.5, y + 0.5, z + 0.5);
+                                geometries[bId].push(matrix);
+                            }
+                        }
+                    }
+                }
+
+                const group = new THREE.Group();
+                let hasGeometry = false;
+
+                for (let id in geometries) {
+                    if (geometries[id].length === 0) continue;
+                    hasGeometry = true;
+                    const instancedMesh = new THREE.InstancedMesh(boxGeo, BlockTypes.materials[id], geometries[id].length);
+                    for (let j = 0; j < geometries[id].length; j++) {
+                        instancedMesh.setMatrixAt(j, geometries[id][j]);
+                    }
+                    instancedMesh.instanceMatrix.needsUpdate = true;
+                    group.add(instancedMesh);
+                }
+
+                if (hasGeometry) {
+                    this.chunksGroup.add(group);
+                    this.chunkMeshes[key] = group;
+                }
+            }
+
+            rebuildChunkAt(x, z) {
+                const cx = Math.floor(x / this.chunkSize);
+                const cz = Math.floor(z / this.chunkSize);
+                this.buildChunk(cx, cz);
+
+                const localX = x % this.chunkSize;
+                const localZ = z % this.chunkSize;
+                if (localX === 0 && cx > 0) this.buildChunk(cx - 1, cz);
+                if (localX === this.chunkSize - 1 && cx < (this.sizeX / this.chunkSize) - 1) this.buildChunk(cx + 1, cz);
+                if (localZ === 0 && cz > 0) this.buildChunk(cx, cz - 1);
+                if (localZ === this.chunkSize - 1 && cz < (this.sizeZ / this.chunkSize) - 1) this.buildChunk(cx, cz + 1);
+            }
+
+            updateFrustumCulling(camera) {
+                const frustum = new THREE.Frustum();
+                const projScreenMatrix = new THREE.Matrix4();
+                projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+                frustum.setFromProjectionMatrix(projScreenMatrix);
+
+                const chunkSize = this.chunkSize;
+                const halfSize = chunkSize / 2;
+
+                for (let key in this.chunkMeshes) {
+                    const mesh = this.chunkMeshes[key];
+                    if (!mesh) continue;
+                    const [cx, cz] = key.split(',').map(Number);
+                    const centerX = cx * chunkSize + halfSize;
+                    const centerZ = cz * chunkSize + halfSize;
+                    const centerY = this.sizeY / 2;
+
+                    const sphere = new THREE.Sphere(new THREE.Vector3(centerX, centerY, centerZ), chunkSize * 0.9);
+                    mesh.visible = frustum.intersectsSphere(sphere);
+                }
+            }
+
+            dispose() {
+                while(this.chunksGroup.children.length > 0) {
+                    this.chunksGroup.remove(this.chunksGroup.children[0]);
+                }
+                this.chunkMeshes = {};
+            }
+        }
+
+        // Raycaster Grid Traversal DDA
+        class VoxelRaycaster {
+            constructor(world) { this.world = world; }
+            cast(camera, maxDist = 5.0) {
+                const rayPos = camera.position.clone();
+                const dir = new THREE.Vector3();
+                camera.getWorldDirection(dir);
+
+                let x = Math.floor(rayPos.x); let y = Math.floor(rayPos.y); let z = Math.floor(rayPos.z);
+                const stepX = dir.x > 0 ? 1 : -1; const stepY = dir.y > 0 ? 1 : -1; const stepZ = dir.z > 0 ? 1 : -1;
+                const tDeltaX = Math.abs(1 / dir.x); const tDeltaY = Math.abs(1 / dir.y); const tDeltaZ = Math.abs(1 / dir.z);
+
+                let nextX = x + (dir.x > 0 ? 1 : 0); let nextY = y + (dir.y > 0 ? 1 : 0); let nextZ = z + (dir.z > 0 ? 1 : 0);
+                let tMaxX = (dir.x === 0) ? Infinity : Math.abs((nextX - rayPos.x) / dir.x);
+                let tMaxY = (dir.y === 0) ? Infinity : Math.abs((nextY - rayPos.y) / dir.y);
+                let tMaxZ = (dir.z === 0) ? Infinity : Math.abs((nextZ - rayPos.z) / dir.z);
+
+                let dist = 0; let normal = [0, 0, 0];
+
+                while (dist < maxDist) {
+                    if (this.world.isSolid(x, y, z)) {
+                        return { hit: true, blockPos: [x, y, z], normal: normal };
+                    }
+                    if (tMaxX < tMaxY && tMaxX < tMaxZ) {
+                        dist = tMaxX; tMaxX += tDeltaX; x += stepX; normal = [-stepX, 0, 0];
+                    } else if (tMaxY < tMaxZ) {
+                        dist = tMaxY; tMaxY += tDeltaY; y += stepY; normal = [0, -stepY, 0];
+                    } else {
+                        dist = tMaxZ; tMaxZ += tDeltaZ; z += stepZ; normal = [0, 0, -stepZ];
+                    }
+                }
+                return { hit: false };
+            }
+        }
+
+        // Wireframe Highlight Box
+        class HighlightBox {
+            constructor(scene) {
+                const geom = new THREE.BoxGeometry(1.002, 1.002, 1.002);
+                const edges = new THREE.EdgesGeometry(geom);
+                const mat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
+                this.mesh = new THREE.LineSegments(edges, mat);
+                this.mesh.visible = false;
+                scene.add(this.mesh);
+            }
+            update(hitResult) {
+                if (hitResult.hit) {
+                    const [x, y, z] = hitResult.blockPos;
+                    this.mesh.position.set(x + 0.5, y + 0.5, z + 0.5);
+                    this.mesh.visible = true;
+                } else {
+                    this.mesh.visible = false;
+                }
+            }
+            dispose() {
+                this.mesh.geometry.dispose();
+                this.mesh.material.dispose();
+            }
+        }
+
+        // Kelas Player & Fisika AABB (dengan validasi anti-terjebak)
+        class Player {
+            constructor(world, camera) {
+                this.world = world;
+                this.camera = camera;
+                this.width = 0.6; this.height = 1.8; this.depth = 0.6;
+                this.position = new THREE.Vector3(32, 25, 32);
+                this.velocity = new THREE.Vector3(0, 0, 0);
+
+                this.gravity = -25;
+                this.walkSpeed = 4;
+                this.sprintSpeed = 8;
+                this.jumpVelocity = 8;
+                this.onGround = false;
+            }
+
+            respawn() {
+                for (let y = this.world.sizeY - 1; y >= 0; y--) {
+                    if (this.world.isSolid(32, y, 32)) {
+                        this.position.set(32.5, y + 1.8, 32.5);
+                        this.velocity.set(0, 0, 0);
+                        break;
+                    }
+                }
+            }
+
+            validateSpawnPosition() {
+                // Jika posisi spawn tertanam di blok, naikkan sampai posisi aman
+                let safetyCount = 0;
+                while (this.checkCollisionBox(this.position.x, this.position.y, this.position.z) && safetyCount < 30) {
+                    this.position.y += 1;
+                    safetyCount++;
+                }
+            }
+
+            checkCollisionBox(px, py, pz) {
+                const halfW = this.width / 2;
+                const minX = Math.floor(px - halfW); const maxX = Math.floor(px + halfW);
+                const minY = Math.floor(py - this.height); const maxY = Math.floor(py);
+                const minZ = Math.floor(pz - halfW); const maxZ = Math.floor(pz + halfW);
+
+                for (let x = minX; x <= maxX; x++) {
+                    for (let y = minY; y <= maxY; y++) {
+                        for (let z = minZ; z <= maxZ; z++) {
+                            if (this.world.isSolid(x, y, z)) return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            intersectsPlayerBox(tx, ty, tz) {
+                const halfW = this.width / 2;
+                const pMinX = this.position.x - halfW; const pMaxX = this.position.x + halfW;
+                const pMinY = this.position.y - this.height; const pMaxY = this.position.y;
+                const pMinZ = this.position.z - halfW; const pMaxZ = this.position.z + halfW;
+                return (pMinX < tx + 1 && pMaxX > tx && pMinY < ty + 1 && pMaxY > ty && pMinZ < tz + 1 && pMaxZ > tz);
+            }
+
+            update(dt, moveVector, jump, sprint) {
+                const speed = sprint ? this.sprintSpeed : this.walkSpeed;
+                this.velocity.x = moveVector.x * speed;
+                this.velocity.z = moveVector.z * speed;
+                this.velocity.y += this.gravity * dt;
+
+                if (jump && this.onGround) {
+                    this.velocity.y = this.jumpVelocity;
+                    this.onGround = false;
+                }
+
+                this.moveAndCollide(dt);
+                if (this.position.y < -10) this.respawn();
+
+                this.camera.position.copy(this.position);
+                this.camera.position.y += (this.height * 0.85);
+
+                const isMoving = (moveVector.lengthSq() > 0);
+                soundManager.playStepSound(dt, isMoving, this.onGround);
+            }
+
+            moveAndCollide(dt) {
+                const dx = this.velocity.x * dt;
+                const dy = this.velocity.y * dt;
+                const dz = this.velocity.z * dt;
+
+                this.position.x += dx;
+                if (this.checkCollisionBox(this.position.x, this.position.y, this.position.z)) {
+                    this.position.x -= dx; this.velocity.x = 0;
+                }
+                this.position.z += dz;
+                if (this.checkCollisionBox(this.position.x, this.position.y, this.position.z)) {
+                    this.position.z -= dz; this.velocity.z = 0;
+                }
+
+                this.onGround = false;
+                this.position.y += dy;
+                if (this.checkCollisionBox(this.position.x, this.position.y, this.position.z)) {
+                    if (dy < 0) this.onGround = true;
+                    else if (dy > 0) this.velocity.y = 0;
+                    this.position.y -= dy; this.velocity.y = 0;
+                }
+            }
+        }
+
+        // Kelas DesktopControls
+        class DesktopControls {
+            constructor(camera) {
+                this.camera = camera;
+                this.yaw = 0; this.pitch = 0;
+                this.keys = { w: false, a: false, s: false, d: false, space: false, shift: false };
+                this.isLocked = false;
+                this.prompt = document.getElementById('pointer-lock-prompt');
+
+                this.boundKeyDown = (e) => this.onKeyDown(e);
+                this.boundKeyUp = (e) => this.onKeyUp(e);
+                this.boundMouseMove = (e) => this.onMouseMove(e);
+                this.boundPointerLockChange = () => this.onPointerLockChange();
+
+                document.addEventListener('keydown', this.boundKeyDown);
+                document.addEventListener('keyup', this.boundKeyUp);
+                document.addEventListener('mousemove', this.boundMouseMove);
+                document.addEventListener('pointerlockchange', this.boundPointerLockChange);
+
+                const canvas = document.getElementById('canvas-container');
+                canvas.addEventListener('click', () => {
+                    if (currentPhase === 'gameplay' && !this.isLocked && !pauseOverlay.isPaused) {
+                        canvas.requestPointerLock();
+                    }
+                });
+            }
+
+            exitPointerLock() { if (document.pointerLockElement) document.exitPointerLock(); }
+            requestPointerLock() { document.getElementById('canvas-container').requestPointerLock(); }
+            showPrompt(show) { this.prompt.style.display = (show && !this.isLocked) ? 'block' : 'none'; }
+
+            updateCameraRotation() {
+                const euler = new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ');
+                this.camera.quaternion.setFromEuler(euler);
+            }
+
+            onPointerLockChange() {
+                const canvas = document.getElementById('canvas-container');
+                this.isLocked = document.pointerLockElement === canvas;
+                this.prompt.style.display = (currentPhase === 'gameplay' && !this.isLocked && !pauseOverlay.isPaused) ? 'block' : 'none';
+                if (!this.isLocked && currentPhase === 'gameplay' && !pauseOverlay.isPaused) {
+                    pauseOverlay.show();
+                }
+            }
+
+            onMouseMove(e) {
+                if (!this.isLocked || currentPhase !== 'gameplay' || pauseOverlay.isPaused) return;
+                const sensitivity = 0.002;
+                this.yaw -= e.movementX * sensitivity;
+                this.pitch -= e.movementY * sensitivity;
+                const maxPitch = Math.PI / 2 - 0.01;
+                this.pitch = Math.max(-maxPitch, Math.min(maxPitch, this.pitch));
+                this.updateCameraRotation();
+            }
+
+            onKeyDown(e) {
+                if (currentPhase !== 'gameplay') return;
+                if (e.code === 'Escape') {
+                    if (pauseOverlay.isPaused) pauseOverlay.hide();
+                    else pauseOverlay.show();
+                    return;
+                }
+                if (pauseOverlay.isPaused) return;
+
+                switch(e.code) {
+                    case 'KeyW': this.keys.w = true; break;
+                    case 'KeyA': this.keys.a = true; break;
+                    case 'KeyS': this.keys.s = true; break;
+                    case 'KeyD': this.keys.d = true; break;
+                    case 'Space': this.keys.space = true; break;
+                    case 'ShiftLeft': case 'ShiftRight': this.keys.shift = true; break;
+                    case 'Digit1': hotbar.setActive(0); break;
+                    case 'Digit2': hotbar.setActive(1); break;
+                    case 'Digit3': hotbar.setActive(2); break;
+                    case 'Digit4': hotbar.setActive(3); break;
+                    case 'Digit5': hotbar.setActive(4); break;
+                    case 'Digit6': hotbar.setActive(5); break;
+                    case 'KeyR': player.respawn(); break;
+                    case 'KeyF': document.getElementById('hud-debug').classList.toggle('show'); break;
+                }
+            }
+
+            onKeyUp(e) {
+                switch(e.code) {
+                    case 'KeyW': this.keys.w = false; break;
+                    case 'KeyA': this.keys.a = false; break;
+                    case 'KeyS': this.keys.s = false; break;
+                    case 'KeyD': this.keys.d = false; break;
+                    case 'Space': this.keys.space = false; break;
+                    case 'ShiftLeft': case 'ShiftRight': this.keys.shift = false; break;
+                }
+            }
+
+            getMoveVector() {
+                const moveDir = new THREE.Vector3(0, 0, 0);
+                if (this.keys.w) moveDir.z -= 1;
+                if (this.keys.s) moveDir.z += 1;
+                if (this.keys.a) moveDir.x -= 1;
+                if (this.keys.d) moveDir.x += 1;
+                moveDir.normalize();
+                moveDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
+                return moveDir;
+            }
+
+            isJumpPressed() { return this.keys.space; }
+            isSprintPressed() { return this.keys.shift; }
+
+            dispose() {
+                document.removeEventListener('keydown', this.boundKeyDown);
+                document.removeEventListener('keyup', this.boundKeyUp);
+                document.removeEventListener('mousemove', this.boundMouseMove);
+                document.removeEventListener('pointerlockchange', this.boundPointerLockChange);
+            }
+        }
+
+        // Kelas MobileControls
+        class MobileControls {
+            constructor(camera) {
+                this.camera = camera;
+                this.yaw = 0; this.pitch = 0;
+                this.controlsElement = document.getElementById('mobile-controls');
+                this.joystickBase = document.getElementById('joystick-base');
+                this.joystickKnob = document.getElementById('joystick-knob');
+                this.btnJump = document.getElementById('btn-jump');
+                this.btnBreak = document.getElementById('btn-break');
+                this.btnPlace = document.getElementById('btn-place');
+                this.btnPauseMobile = document.getElementById('btn-pause-mobile');
+                this.btnRespawnMobile = document.getElementById('btn-respawn-mobile');
+                this.lookArea = document.getElementById('mobile-look-area');
+
+                this.joystickTouchId = null;
+                this.lookTouchId = null;
+                this.joystickVector = new THREE.Vector2(0, 0);
+                this.jumpPressed = false;
+                this.breakInterval = null; this.placeInterval = null;
+                this.basePos = { x: 0, y: 0 };
+                this.initListeners();
+            }
+
+            show(show) {
+                this.controlsElement.classList.toggle('show', show);
+                this.btnPauseMobile.style.display = show ? 'flex' : 'none';
+                this.btnRespawnMobile.classList.toggle('show', show);
+            }
+
+            initListeners() {
+                this.boundTouchStartBase = (e) => {
+                    const touch = e.changedTouches[0];
+                    if (this.joystickTouchId === null) {
+                        this.joystickTouchId = touch.identifier;
+                        const rect = this.joystickBase.getBoundingClientRect();
+                        this.basePos.x = rect.left + rect.width / 2;
+                        this.basePos.y = rect.top + rect.height / 2;
+                    }
+                    e.preventDefault();
+                };
+                this.joystickBase.addEventListener('touchstart', this.boundTouchStartBase);
+
+                this.boundTouchMove = (e) => {
+                    for (let i = 0; i < e.changedTouches.length; i++) {
+                        const touch = e.changedTouches[i];
+                        if (touch.identifier === this.joystickTouchId) {
+                            const dx = touch.clientX - this.basePos.x;
+                            const dy = touch.clientY - this.basePos.y;
+                            const dist = Math.sqrt(dx * dx + dy * dy);
+                            const maxRadius = 45;
+                            const angle = Math.atan2(dy, dx);
+                            const clampedDist = Math.min(dist, maxRadius);
+                            const knobX = Math.cos(angle) * clampedDist;
+                            const knobY = Math.sin(angle) * clampedDist;
+                            this.joystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+                            this.joystickVector.set(knobX / maxRadius, knobY / maxRadius);
+                        } else if (touch.identifier === this.lookTouchId) {
+                            const sensitivity = 0.005;
+                            const dx = touch.clientX - this.lastLookX;
+                            const dy = touch.clientY - this.lastLookY;
+                            this.yaw -= dx * sensitivity;
+                            this.pitch -= dy * sensitivity;
+                            const maxPitch = Math.PI / 2 - 0.01;
+                            this.pitch = Math.max(-maxPitch, Math.min(maxPitch, this.pitch));
+                            this.lastLookX = touch.clientX; this.lastLookY = touch.clientY;
+                            this.updateCameraRotation();
+                        }
+                    }
+                };
+                window.addEventListener('touchmove', this.boundTouchMove);
+
+                this.boundTouchEnd = (e) => {
+                    for (let i = 0; i < e.changedTouches.length; i++) {
+                        const touch = e.changedTouches[i];
+                        if (touch.identifier === this.joystickTouchId) {
+                            this.joystickTouchId = null;
+                            this.joystickKnob.style.transform = `translate(0px, 0px)`;
+                            this.joystickVector.set(0, 0);
+                        } else if (touch.identifier === this.lookTouchId) {
+                            this.lookTouchId = null;
+                        }
+                    }
+                };
+                window.addEventListener('touchend', this.boundTouchEnd);
+
+                this.boundLookStart = (e) => {
+                    const touch = e.changedTouches[0];
+                    if (this.lookTouchId === null) {
+                        this.lookTouchId = touch.identifier;
+                        this.lastLookX = touch.clientX; this.lastLookY = touch.clientY;
+                    }
+                    e.preventDefault();
+                };
+                this.lookArea.addEventListener('touchstart', this.boundLookStart);
+
+                this.boundJumpStart = (e) => { this.jumpPressed = true; e.preventDefault(); };
+                this.btnJump.addEventListener('touchstart', this.boundJumpStart);
+                this.btnJump.addEventListener('touchend', () => { this.jumpPressed = false; });
+
+                this.boundBreakStart = (e) => {
+                    if (window.triggerBreakAction) window.triggerBreakAction();
+                    if (!this.breakInterval) this.breakInterval = setInterval(() => { if (window.triggerBreakAction) window.triggerBreakAction(); }, 250);
+                    e.preventDefault();
+                };
+                this.btnBreak.addEventListener('touchstart', this.boundBreakStart);
+                this.btnBreak.addEventListener('touchend', () => { clearInterval(this.breakInterval); this.breakInterval = null; });
+
+                this.boundPlaceStart = (e) => {
+                    if (window.triggerPlaceAction) window.triggerPlaceAction();
+                    if (!this.placeInterval) this.placeInterval = setInterval(() => { if (window.triggerPlaceAction) window.triggerPlaceAction(); }, 250);
+                    e.preventDefault();
+                };
+                this.btnPlace.addEventListener('touchstart', this.boundPlaceStart);
+                this.btnPlace.addEventListener('touchend', () => { clearInterval(this.placeInterval); this.placeInterval = null; });
+
+                this.boundPauseClick = () => pauseOverlay.show();
+                this.btnPauseMobile.addEventListener('click', this.boundPauseClick);
+
+                this.boundRespawnClick = () => player.respawn();
+                this.btnRespawnMobile.addEventListener('click', this.boundRespawnClick);
+            }
+
+            updateCameraRotation() {
+                const euler = new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ');
+                this.camera.quaternion.setFromEuler(euler);
+            }
+
+            getMoveVector() {
+                const moveDir = new THREE.Vector3(this.joystickVector.x, 0, this.joystickVector.y);
+                moveDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
+                return moveDir;
+            }
+
+            isJumpPressed() {
+                const val = this.jumpPressed; this.jumpPressed = false; return val;
+            }
+            isSprintPressed() { return false; }
+
+            dispose() {
+                window.removeEventListener('touchmove', this.boundTouchMove);
+                window.removeEventListener('touchend', this.boundTouchEnd);
+                this.joystickBase.removeEventListener('touchstart', this.boundTouchStartBase);
+                this.lookArea.removeEventListener('touchstart', this.boundLookStart);
+                this.btnJump.removeEventListener('touchstart', this.boundJumpStart);
+                this.btnBreak.removeEventListener('touchstart', this.boundBreakStart);
+                this.btnPlace.removeEventListener('touchstart', this.boundPlaceStart);
+                this.btnPauseMobile.removeEventListener('click', this.boundPauseClick);
+                this.btnRespawnMobile.removeEventListener('click', this.boundRespawnClick);
+            }
+        }
+
+        // PauseOverlay Manager
+        class PauseOverlay {
+            constructor() {
+                this.overlay = document.getElementById('pause-overlay');
+                this.isPaused = false;
+                this.initListeners();
+            }
+
+            show() {
+                if (currentPhase !== 'gameplay') return;
+                this.isPaused = true;
+                this.overlay.classList.add('show');
+                uiManager.showGameplayUI(false);
+                if (IS_MOBILE) {
+                    document.getElementById('mobile-controls').style.display = 'none';
+                    document.getElementById('mobile-top-bar').style.display = 'none';
+                    document.getElementById('btn-respawn-mobile').classList.remove('show');
+                } else {
+                    controls.exitPointerLock();
+                    controls.showPrompt(false);
+                }
+            }
+
+            hide() {
+                if (currentPhase !== 'gameplay') return;
+                this.isPaused = false;
+                this.overlay.classList.remove('show');
+                uiManager.showGameplayUI(true);
+                if (IS_MOBILE) {
+                    document.getElementById('mobile-controls').style.display = 'block';
+                    document.getElementById('mobile-top-bar').style.display = 'flex';
+                    document.getElementById('btn-respawn-mobile').classList.add('show');
+                } else {
+                    controls.requestPointerLock();
+                }
+            }
+
+            initListeners() {
+                document.getElementById('btn-resume').addEventListener('click', () => this.hide());
+                document.getElementById('btn-pause-help').addEventListener('click', () => uiManager.openHelpModal());
+                document.getElementById('btn-main-menu').addEventListener('click', () => {
+                    saveManager.save(world, player, hotbar.activeSlot, controls.yaw);
+                    this.overlay.classList.remove('show');
+                    this.isPaused = false;
+                    uiManager.showGameplayUI(false);
+                    if (IS_MOBILE) controls.show(false);
+
+                    uiManager.fadeOverlay.classList.add('active');
+                    setTimeout(() => {
+                        currentPhase = 'menu';
+                        gameplayScene.clear();
+                        if (skybox) { skybox.dispose(); skybox = null; }
+                        if (highlightBox) { highlightBox.dispose(); highlightBox = null; }
+                        if (particleSystem) { particleSystem.dispose(); particleSystem = null; }
+                        if (controls && controls.dispose) { controls.dispose(); }
+
+                        menuScene = new MenuScene();
+                        uiManager.showMenu();
+                        uiManager.fadeOverlay.classList.remove('active');
+                    }, 500);
+                });
+            }
+        }
+        const pauseOverlay = new PauseOverlay();
+
+        // Kelas MenuScene (3D Voxel Preview Terisolasi)
+        class MenuScene {
+            constructor() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x87CEEB);
+                this.scene.fog = new THREE.Fog(0x87CEEB, 60, 120);
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+                
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+                dirLight.position.set(30, 50, 20);
+                this.scene.add(dirLight);
+
+                this.buildTerrainPreview();
+                this.angle = 0; this.radius = 60; this.height = 40;
+            }
+
+            buildTerrainPreview() {
+                const sizeX = 32, sizeY = 16, sizeZ = 32;
+                const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+                const materials = [
+                    null,
+                    new THREE.MeshLambertMaterial({ color: 0x5D9C3F }),
+                    new THREE.MeshLambertMaterial({ color: 0x8B5A2B }),
+                    new THREE.MeshLambertMaterial({ color: 0x7F7F7F })
+                ];
+
+                const geometries = [[], [], [], []];
+                for (let x = 0; x < sizeX; x++) {
+                    for (let z = 0; z < sizeZ; z++) {
+                        const h = Math.floor(6 + Math.sin(x * 0.3) * 2 + Math.cos(z * 0.3) * 2);
+                        for (let y = 0; y < sizeY; y++) {
+                            if (y <= h) {
+                                const bId = y === h ? 1 : (y > h - 3 ? 2 : 3);
+                                const matrix = new THREE.Matrix4().makeTranslation(x - sizeX/2, y, z - sizeZ/2);
+                                geometries[bId].push(matrix);
+                            }
+                        }
+                    }
+                }
+
+                for (let i = 1; i < materials.length; i++) {
+                    if (geometries[i].length === 0) continue;
+                    const instancedMesh = new THREE.InstancedMesh(boxGeo, materials[i], geometries[i].length);
+                    for (let j = 0; j < geometries[i].length; j++) {
+                        instancedMesh.setMatrixAt(j, geometries[i][j]);
+                    }
+                    instancedMesh.instanceMatrix.needsUpdate = true;
+                    this.scene.add(instancedMesh);
+                }
+            }
+
+            update(dt) {
+                this.angle += 0.05 * dt;
+                this.camera.position.set(Math.cos(this.angle) * this.radius, this.height, Math.sin(this.angle) * this.radius);
+                this.camera.lookAt(0, 5, 0);
+            }
+
+            render(renderer) { renderer.render(this.scene, this.camera); }
+            dispose() {
+                this.scene.clear();
+            }
+        }
+
+        // UIManager Class
+        class UIManager {
+            constructor() {
+                this.loadingScreen = document.getElementById('loading-screen');
+                this.progressFill = document.getElementById('progress-fill');
+                this.loadingStatus = document.getElementById('loading-status');
+                
+                this.menuPanel = document.getElementById('menu-panel');
+                this.btnPlay = document.getElementById('btn-play');
+                this.btnLoad = document.getElementById('btn-load');
+                this.btnHelp = document.getElementById('btn-help');
+
+                this.modalOverlay = document.getElementById('modal-overlay');
+                this.modalClose = document.getElementById('modal-close');
+                this.modalContent = document.getElementById('modal-content');
+                this.fadeOverlay = document.getElementById('fade-overlay');
+                this.crosshair = document.getElementById('crosshair');
+                this.hudInstructions = document.getElementById('hud-instructions');
+                this.vignette = document.getElementById('vignette');
+                
+                this.initListeners();
+                this.checkSaveState();
+            }
+
+            checkSaveState() {
+                if (saveManager.hasSave()) this.btnLoad.removeAttribute('disabled');
+                else this.btnLoad.setAttribute('disabled', 'true');
+            }
+
+            openHelpModal() {
+                const desktopText = `🖱️ Mouse: Lihat sekitar (Pointer Lock)
+⌨️ WASD: Gerak | ⬆️ Space: Lompat | 🏃 Shift: Sprint
+🔢 1-6: Pilih Blok di Hotbar
+⛏️ Klik Kiri: Hancurkan Blok | 🧱 Klik Kanan: Pasang Blok
+⏸️ ESC: Pause | R: Respawn | F: Debug Info`;
+
+                const mobileText = `👆 Swipe area kanan: Lihat sekitar
+🕹️ Joystick kiri: Gerak | ⬆️ Tombol ⬆: Lompat
+🔢 Tap hotbar: Pilih Blok
+⛏️ Tombol ⛏: Hancurkan | 🧱 Tombol 🧱: Pasang
+⏸️ Tombol Pause: Menu Jeda | ↻: Respawn`;
+
+                this.modalContent.textContent = IS_MOBILE ? mobileText : desktopText;
+                this.modalOverlay.classList.add('show');
+            }
+
+            initListeners() {
+                this.btnHelp.addEventListener('click', () => this.openHelpModal());
+                const closeModal = () => this.modalOverlay.classList.remove('show');
+                this.modalClose.addEventListener('click', closeModal);
+                this.modalOverlay.addEventListener('click', (e) => { if (e.target === this.modalOverlay) closeModal(); });
+            }
+
+            showLoadingProgress(callback) {
+                const statuses = ["Membangun dunia...", "Menanam rumput...", "Menaruh batu...", "Menyiapkan player..."];
+                let idx = 0;
+                this.progressFill.style.width = '100%';
+                
+                const interval = setInterval(() => {
+                    idx++;
+                    if (idx < statuses.length) this.loadingStatus.textContent = statuses[idx];
+                }, 500);
+
+                setTimeout(() => {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        this.loadingScreen.style.opacity = '0';
+                        setTimeout(() => {
+                            this.loadingScreen.style.display = 'none';
+                            if (callback) callback();
+                        }, 400);
+                    }, 400);
+                }, 2000);
+            }
+
+            showMenu() {
+                this.checkSaveState();
+                this.menuPanel.style.display = 'flex';
+                setTimeout(() => this.menuPanel.classList.add('show'), 50);
+            }
+
+            hideMenu() {
+                this.menuPanel.classList.remove('show');
+                setTimeout(() => this.menuPanel.style.display = 'none', 500);
+            }
+
+            showGameplayUI(show) {
+                this.crosshair.classList.toggle('show', show);
+                this.vignette.classList.toggle('show', show);
+                hotbar.show(show);
+                if (!IS_MOBILE) this.hudInstructions.classList.toggle('show', show);
+                else {
+                    document.getElementById('mobile-top-bar').style.display = show ? 'flex' : 'none';
+                    document.getElementById('btn-respawn-mobile').classList.toggle('show', show);
+                }
+            }
+        }
+
+        // Variabel Utama Global
+        let renderer, menuScene, gameplayScene, world, player, controls, uiManager, hotbar;
+        let raycaster, highlightBox, particleSystem, skybox;
+        let clock = new THREE.Clock();
+
+        let fpsFrames = 0; let fpsTimer = 0; let currentFPS = 60;
+        let resizeTimeout = null;
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+            renderer = new THREE.WebGLRenderer({ antialias: !IS_MOBILE });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(IS_MOBILE ? 1 : Math.min(window.devicePixelRatio, 2));
+            container.appendChild(renderer.domElement);
+
+            menuScene = new MenuScene();
+            hotbar = new Hotbar();
+            uiManager = new UIManager();
+
+            // Gameplay Scene Setup
+            gameplayScene = new THREE.Scene();
+            const fogNear = IS_MOBILE ? 30 : 40;
+            const fogFar = IS_MOBILE ? 60 : 90;
+            gameplayScene.background = new THREE.Color(0x87CEEB);
+            gameplayScene.fog = new THREE.Fog(0x87CEEB, fogNear, fogFar);
+
+            gameplayScene.add(new THREE.AmbientLight(0xffffff, 0.7));
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            dirLight.position.set(50, 80, 50);
+            gameplayScene.add(dirLight);
+
+            world = new World();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            player = new Player(world, camera);
+
+            skybox = new Skybox(gameplayScene);
+            raycaster = new VoxelRaycaster(world);
+            highlightBox = new HighlightBox(gameplayScene);
+            particleSystem = new ParticleSystem(gameplayScene);
+
+            controls = IS_MOBILE ? new MobileControls(camera) : new DesktopControls(camera);
+
+            // Aksi Hancurkan Blok
+            const executeBreak = () => {
+                if (currentPhase !== 'gameplay' || pauseOverlay.isPaused) return;
+                const hit = raycaster.cast(player.camera, 5.0);
+                if (hit.hit) {
+                    const [x, y, z] = hit.blockPos;
+                    const blockId = world.getBlock(x, y, z);
+                    if (blockId > 0) {
+                        world.setBlock(x, y, z, 0);
+                        soundManager.playBreakSound();
+                        particleSystem.spawnBurst(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), blockId);
+                        if (navigator.vibrate) navigator.vibrate(30);
+                    }
+                }
+            };
+
+            // Aksi Pasang Blok
+            const executePlace = () => {
+                if (currentPhase !== 'gameplay' || pauseOverlay.isPaused) return;
+                const hit = raycaster.cast(player.camera, 5.0);
+                if (hit.hit) {
+                    const [x, y, z] = hit.blockPos;
+                    const [nx, ny, nz] = hit.normal;
+                    const tx = x + nx; const ty = y + ny; const tz = z + nz;
+
+                    if (tx >= 0 && tx < world.sizeX && ty >= 0 && ty < world.sizeY && tz >= 0 && tz < world.sizeZ) {
+                        if (world.getBlock(tx, ty, tz) === 0 && !player.intersectsPlayerBox(tx, ty, tz)) {
+                            const selectedType = hotbar.getCurrentBlockType();
+                            world.setBlock(tx, ty, tz, selectedType);
+                            soundManager.playPlaceSound();
+                            if (navigator.vibrate) navigator.vibrate(30);
+                        }
+                    }
+                }
+            };
+
+            window.triggerBreakAction = executeBreak;
+            window.triggerPlaceAction = executePlace;
+
+            if (!IS_MOBILE) {
+                window.addEventListener('mousedown', (e) => {
+                    if (currentPhase !== 'gameplay' || !controls.isLocked || pauseOverlay.isPaused) return;
+                    if (e.button === 0) executeBreak();
+                    else if (e.button === 2) executePlace();
+                });
+                window.addEventListener('contextmenu', (e) => e.preventDefault());
+            }
+
+            // Tombol Mulai Permainan Baru
+            uiManager.btnPlay.addEventListener('click', () => {
+                if (currentPhase !== 'menu') return;
+                currentPhase = 'transition';
+                uiManager.hideMenu();
+
+                uiManager.fadeOverlay.classList.add('active');
+                setTimeout(() => {
+                    world.generateTerrain();
+                    world.buildAll(gameplayScene);
+                    player.respawn();
+                    player.validateSpawnPosition();
+                    
+                    currentPhase = 'gameplay';
+                    menuScene.dispose();
+                    if (IS_MOBILE) controls.show(true);
+                    else controls.showPrompt(true);
+                    uiManager.showGameplayUI(true);
+                    uiManager.fadeOverlay.classList.remove('active');
+                }, 500);
+            });
+
+            // Tombol Muat Dunia Terakhir
+            uiManager.btnLoad.addEventListener('click', () => {
+                if (currentPhase !== 'menu') return;
+                const saveData = saveManager.load();
+                if (!saveData) return;
+
+                currentPhase = 'transition';
+                uiManager.hideMenu();
+
+                uiManager.fadeOverlay.classList.add('active');
+                setTimeout(() => {
+                    world.loadFromData(saveData.worldData);
+                    world.buildAll(gameplayScene);
+                    player.position.set(saveData.playerPos[0], saveData.playerPos[1], saveData.playerPos[2]);
+                    player.validateSpawnPosition();
+                    controls.yaw = saveData.playerYaw || 0;
+                    controls.pitch = 0;
+                    controls.updateCameraRotation();
+                    hotbar.setActive(saveData.currentSlot || 0);
+
+                    currentPhase = 'gameplay';
+                    menuScene.dispose();
+                    if (IS_MOBILE) controls.show(true);
+                    else controls.showPrompt(true);
+                    uiManager.showGameplayUI(true);
+                    uiManager.fadeOverlay.classList.remove('active');
+                }, 500);
+            });
+
+            uiManager.showLoadingProgress(() => {
+                currentPhase = 'menu';
+                uiManager.showMenu();
+            });
+
+            setInterval(() => {
+                if (currentPhase === 'gameplay' && !pauseOverlay.isPaused) {
+                    saveManager.save(world, player, hotbar.activeSlot, controls.yaw);
+                }
+            }, 30000);
+
+            window.addEventListener('beforeunload', () => {
+                if (currentPhase === 'gameplay') saveManager.save(world, player, hotbar.activeSlot, controls.yaw);
+            });
+
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(onResize, 150);
+            });
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.1);
+
+            // Hitung FPS (Throttled setiap 500ms)
+            fpsFrames++;
+            fpsTimer += dt;
+            if (fpsTimer >= 0.5) {
+                currentFPS = Math.round(fpsFrames / fpsTimer);
+                fpsFrames = 0; fpsTimer = 0;
+
+                const debugEl = document.getElementById('hud-debug');
+                if (debugEl.classList.contains('show') && currentPhase === 'gameplay') {
+                    const px = player.position.x.toFixed(1);
+                    const py = player.position.y.toFixed(1);
+                    const pz = player.position.z.toFixed(1);
+                    const activeChunks = Object.keys(world.chunkMeshes).length;
+                    debugEl.textContent = `FPS: ${currentFPS}
+Pos: ${px}, ${py}, ${pz}
+Chunks: ${activeChunks}`;
+                }
+            }
+
+            if (currentPhase === 'menu') {
+                menuScene.update(dt);
+                menuScene.render(renderer);
+            } else if (currentPhase === 'gameplay' && !pauseOverlay.isPaused) {
+                const moveVec = controls.getMoveVector();
+                const jump = controls.isJumpPressed();
+                const sprint = controls.isSprintPressed();
+
+                player.update(dt, moveVec, jump, sprint);
+                skybox.update(player.camera.position);
+                
+                const hitResult = raycaster.cast(player.camera, 5.0);
+                highlightBox.update(hitResult);
+                particleSystem.update(dt);
+                world.updateFrustumCulling(player.camera);
+
+                // Crosshair feedback
+                const crosshairEl = document.getElementById('crosshair');
+                if (hitResult.hit) crosshairEl.classList.add('hit');
+                else crosshairEl.classList.remove('hit');
+
+                renderer.render(gameplayScene, player.camera);
+            } else if (currentPhase === 'gameplay' && pauseOverlay.isPaused) {
+                renderer.render(gameplayScene, player.camera);
+            }
+        }
+
+        function onResize() {
+            const width = window.innerWidth; const height = window.innerHeight;
+            renderer.setSize(width, height);
+            if (menuScene && menuScene.camera) {
+                menuScene.camera.aspect = width / height; menuScene.camera.updateProjectionMatrix();
+            }
+            if (player && player.camera) {
+                player.camera.aspect = width / height; player.camera.updateProjectionMatrix();
+            }
+        }
+
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
+
+```
